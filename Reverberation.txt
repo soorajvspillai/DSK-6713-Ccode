@@ -1,0 +1,94 @@
+#include"soorajvs13cfg.h"
+#include <stdio.h>
+#include <math.h>
+short i=0;
+short buffer[14000];
+short write[14000];
+short bufferlength = 14000;
+short delay = 5;				  				//determines size of buffer
+short delay_flag = 1;			  			//flag if buffer size changes
+short amplitude = 8;			   			//amplitude control by slider
+#define beta 1E-13        	  //rate of convergence
+#define N 30
+float w[N];                  //weights for adapt filter
+float delay1[N];                //input buffer to adapt filter
+short output;		          //overall output
+short out_type = 1;            //output type for slider
+#include"dsk6713.h"
+#include"dsk6713_aic23.h"
+DSK6713_AIC23_Config config= DSK6713_AIC23_DEFAULTCONFIG;
+int t=0;
+void main()
+{
+float yn=0, E=0, dplusn=0, desired=0, noise;
+short T,output;
+
+DSK6713_AIC23_CodecHandle hCodec;
+Uint32 l_input,r_input,l_output,r_output;
+DSK6713_init();
+hCodec=DSK6713_AIC23_openCodec(0,&config);
+DSK6713_AIC23_setFreq(hCodec,DSK6713_AIC23_FREQ_16KHZ);
+
+while(1)
+{
+
+	short new_count;				   			//count for new buffer
+//while(!DSK6713_AIC23_read(hCodec,&l_input));
+while(!DSK6713_AIC23_read(hCodec,&r_input));
+
+if (t==0)
+{
+r_output=r_input+0.1*amplitude*buffer[i]; //newest+oldest sample
+
+ if (delay_flag != delay)		   		//if delay has changed
+  {                                    //->new buffer size
+   delay_flag = delay;			   		//reint for future change
+   bufferlength = 1000*delay;		   	//new buffer length
+   i = 0;				    	   			//reinit buffer count
+  }
+ buffer[i] = r_input;			   			//store input sample
+ i++;					    	  					//increment buffer index
+ if (i == bufferlength) i=0;
+}
+
+if (t==1)
+{
+reverb=r_input+0.1*amplitude*buffer[i]; //newest+oldest sample
+ if (delay_flag != delay)		   		//if delay has changed
+  {                                    //->new buffer size
+   delay_flag = delay;			   		//reint for future change
+   bufferlength = 1000*delay;		   	//new buffer length
+   i = 0;				    	   			//reinit buffer count
+  }
+ buffer[i] = r_input;			   			//store input sample
+ i++;					    	  					//increment buffer index
+ if (i == bufferlength) i=0;
+
+for (T = 0; T < 30; T++)
+{
+w[T] = 0;				  //init buffer for weights
+delay1[T] = 0;			  //init buffer for delay samples
+}
+write[i] = reverb; 
+desired=r_input;
+noise=write[i] ;
+dplusn = desired + noise;         //desired+noise
+delay1[0] = noise;		        //noise as input to adapt FIR
+for (i = 0; i < N; i++)          //to calculate out of adapt FIR
+yn += (w[i] * delay1[i]);       //output of adaptive filter
+E = dplusn - yn;      //"error" signal=(d+n)-yn
+for (i = N-1; i >= 0; i--)       //to update weights and delays
+{
+w[i]=w[i]+beta*E*delay[i];
+delay[i]=delay1[i-1];
+}
+output=((short)E);
+r_output=desired;
+}
+
+//while(!DSK6713_AIC23_write(hCodec,l_output));
+while(!DSK6713_AIC23_write(hCodec,r_output));
+}
+DSK6713_AIC23_closeCodec(hCodec);
+}
+

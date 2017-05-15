@@ -1,0 +1,94 @@
+#include"soorajvs13cfg.h"
+#include <stdio.h>
+#include <math.h>
+#define PI 3.1415926535897
+#define Fs  8000
+#define f   500
+#define a   1024
+#define w2*PI*f/Fs
+#define M 16
+
+int input1[Fs]={0};
+int input2[Fs]={0};
+int output[f]={0};
+int A[M/2];
+int B[M/4];
+#include"dsk6713.h"
+#include"dsk6713_aic23.h"
+DSK6713_AIC23_Config config= DSK6713_AIC23_DEFAULTCONFIG;
+int I[M/4]={0};
+int Q[M/4]={0};
+
+int i,j,k=0,temp,lt;
+int n=0,num,w;
+void main()
+{
+DSK6713_AIC23_CodecHandle hCodec;
+Uint32 l_input,r_input,l_output,r_output;
+DSK6713_init();
+hCodec=DSK6713_AIC23_openCodec(0,&config);
+DSK6713_AIC23_setFreq(hCodec,DSK6713_AIC23_FREQ_24KHZ);
+while(1)
+{
+
+for(i=0;i<M/4;i++)
+{
+for(j=0;j<16;j++)
+{
+output[j+i*16]=B[k++]*input1[j]-B[k++]*input2[j];
+}
+}
+
+for(i=0;i<f;i++)
+{
+input1[i]=cos(i*w)*a;
+}
+
+
+for(i=0;i<f;i++)
+{
+input2[i]=sin(i*w)*a;
+}
+
+
+
+
+while(i<M/2)
+{
+temp=num%2;
+num=num/2;
+A[i]=temp;
+i++;
+
+for(i=0;i&lt;M)
+{
+if (A[i++]==0)
+{
+if(A[i++]==0)
+{
+B[n++]=-3;            //00
+}
+else
+{
+B[n++]=-1;             //01
+}
+}
+else
+{
+if(A[i++]==0)
+{
+B[i++]=3;                 //10
+}
+else
+{
+B[i++]=1;                   //11;
+}
+}
+}
+}
+r_output=output[j+i*16];
+while(!DSK6713_AIC23_write(hCodec,l_output));
+while(!DSK6713_AIC23_write(hCodec,r_output));
+}
+DSK6713_AIC23_closeCodec(hCodec);
+}

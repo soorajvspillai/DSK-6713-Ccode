@@ -1,0 +1,86 @@
+#include"soorajvs13cfg.h"
+#include <stdio.h>
+#include <math.h>
+float a[500],b;
+short write[14000];
+#include"dsk6713.h"
+#include"dsk6713_aic23.h"
+DSK6713_AIC23_Config config= DSK6713_AIC23_DEFAULTCONFIG;
+#define beta 1E-13        	  //rate of convergence
+#define N 30
+float w[N];                  //weights for adapt filter
+float delay[N];
+float delay1[N];                //input buffer to adapt filter
+short output;		          //overall output
+int t=1;
+int alien;
+
+void main()
+{
+float yn=0, E=0, dplusn=0, desired=0, noise;
+short T,output;
+
+int f=2000;
+int i=0;
+int arraysize=48000/f;
+DSK6713_AIC23_CodecHandle hCodec;
+Uint32 l_input,r_input,l_output,r_output;
+DSK6713_init();
+hCodec=DSK6713_AIC23_openCodec(0,&config);
+DSK6713_AIC23_setFreq(hCodec,DSK6713_AIC23_FREQ_16KHZ);
+for(i=0;i<arraysize;i++)
+{
+a[i]=sin(2*3.14*f*i/96000);
+}
+while(1)
+{
+while(!DSK6713_AIC23_read(hCodec,&l_input));
+while(!DSK6713_AIC23_read(hCodec,&r_input));
+
+if (t==0)
+{
+for(i=0;i<arraysize;i++)
+{
+
+l_output=a[i]*l_input*750;
+r_output=a[i]*r_input*750;
+}
+}
+
+if (t==1)
+{
+
+alien=a[i]*l_input*750;
+
+for (T = 0; T < 30; T++)
+{
+w[T] = 0;				  //init buffer for weights
+delay1[T] = 0;			  //init buffer for delay samples
+}
+write[i] = alien;
+desired=r_input;
+noise=write[i] ;
+dplusn = desired + noise;         //desired+noise
+delay1[0] = noise;		        //noise as input to adapt FIR
+for (i = 0; i < N; i++)          //to calculate out of adapt FIR
+yn += (w[i] * delay1[i]);       //output of adaptive filter
+E = dplusn - yn;      //"error" signal=(d+n)-yn
+for (i = N-1; i >= 0; i--)       //to update weights and delays
+{
+w[i]=w[i]+beta*E*delay[i];
+delay[i]=delay1[i-1];
+}
+output=((short)E);
+r_output=desired;
+}
+
+
+
+while(!DSK6713_AIC23_write(hCodec,l_output));
+while(!DSK6713_AIC23_write(hCodec,r_output));
+}
+DSK6713_AIC23_closeCodec(hCodec);
+
+
+}
+

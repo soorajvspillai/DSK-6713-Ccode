@@ -1,0 +1,158 @@
+#include"soorajvs13cfg.h"
+#include <stdio.h>
+#include <math.h>
+int record_array[24000]; /* Buffer for maximum time of 8 seconds */
+#include"dsk6713.h"
+#include"dsk6713_aic23.h"
+DSK6713_AIC23_Config config= DSK6713_AIC23_DEFAULTCONFIG;
+int index=0,k=2;
+int N=24000;
+#define RECORD_THRESHOLD 1000  /* Input level required to start recording */
+
+#define PAUSE_TIME 24000/2   /* Time before recording stops when no input */
+int record_in_progress = 0;
+int delay_time_counter;
+int i;
+void main()
+{
+DSK6713_AIC23_CodecHandle hCodec;
+Uint32 l_input,r_input,l_output,r_output;
+DSK6713_init();
+hCodec=DSK6713_AIC23_openCodec(0,&config);
+DSK6713_AIC23_setFreq(hCodec,DSK6713_AIC23_FREQ_16KHZ);
+
+
+
+while(1)
+{
+//while(!DSK6713_AIC23_read(hCodec,&l_input));
+while(!DSK6713_AIC23_read(hCodec,&r_input));
+
+//for ( i = 0 ; i < N ; i++)
+  // {
+    //record_array[i] = 0; /* Initialize array to all zeroes */
+  // }
+
+/*..............VOICE DIRECT..............*/
+
+         if ( k == 0)
+           {
+            r_output = r_input; /* Straight through */
+           }
+
+
+
+/*..............VOICE RECORD.............*/
+
+
+ /* If the magnitude of the input is greater than the threshold, start recording */
+
+ if ( r_input > RECORD_THRESHOLD || r_input < - RECORD_THRESHOLD)
+  {
+   record_in_progress = 1;            /* Start recording */
+   delay_time_counter = PAUSE_TIME;   /* Start 1/2 second timeout */
+  }
+ else
+  {
+   delay_time_counter--; /* Decrement counter when no input present */
+
+   if ( 0 == delay_time_counter)
+     {
+      record_in_progress = 0; /* No input for more than 1/2 second. Stop recording */
+     }
+}
+
+if ( 1 == record_in_progress)
+  {
+    record_array[index] = r_input; /* Overwrite with latest input */
+
+    if ( index < ( N - 1) )
+      {
+       index++;   /* Not at end of buffer. Point to next element */
+      }
+    else
+      {
+       index = 0; /* Go to beginning of buffer */
+      }
+  }
+
+
+
+
+/*............HALF SPEED PLAYACK............*/
+
+          if ( k == 1)
+           {
+          if ( index & 0x00000001)
+	    {
+ 	    /* For odd values of index, use sample */
+ 	    r_output = record_array[index/2];
+  	  }
+ 	else
+   	 {
+    	 /* For even values of index, interpolate */
+    	 r_output = (record_array[index/2] + record_array[index/2 - 1])/2;
+    	}
+
+ 	if ( index < 2 * N-1 )
+   	{
+   	 index ++;
+  	 }
+	 else
+   	{
+  	  index = 0;
+  	 }
+           }
+
+
+
+/*.................DOULE SPEED PLAYACK.............*/
+
+	    else if ( k == 2)
+           {
+           r_output = record_array[index];
+
+ 	if ( index < ( N-1) )
+ 	  {
+  	  index += 2; /* Skip every other element */
+  	 }
+	 else
+  	 {
+  	  index = 0;  /* Point to beginning of buffer */
+  	 }
+           }
+
+
+
+
+/*..........BACKWARDS PLAYBACK..........*/
+
+         else if ( k == 3)
+           {
+            r_output = record_array[index];
+
+            if ( index > 0 )
+            {
+            	index--;        /* Count downwards */
+            }
+            else
+            {
+            	index = (N - 1);  /* Go back to end of buffer rather than beginning */
+            }
+           }
+//while(!DSK6713_AIC23_write(hCodec,l_output));
+while(!DSK6713_AIC23_write(hCodec,r_output));
+}
+DSK6713_AIC23_closeCodec(hCodec);
+}
+
+/*         __________________________________
+	  |switch_value|      Operation     |
+	  |------------|--------------------|
+	  |	       |                    |
+	  |	0      |    VOICE DIRECT    |
+          |	1      | HALF SPEED PLAYACK |
+	  |	2      | DOULE SPEED PLAYACK|
+	  |	3      | BACKWARDS PLAYBACK |
+          |____________|____________________|
+*/
